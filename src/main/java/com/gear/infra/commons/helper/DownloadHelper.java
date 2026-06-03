@@ -1,5 +1,6 @@
 package com.gear.infra.commons.helper;
 
+import com.gear.infra.commons.constant.BaseConstant;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -13,9 +14,6 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 
 public interface DownloadHelper {
-
-    String TEMPLATE_DIR = "templates/";
-    String FILE_NAME_HEADER = "filename";
 
     /**
      * 准备附件下载响应头。
@@ -33,8 +31,8 @@ public interface DownloadHelper {
         response.setCharacterEncoding(StandardCharsets.UTF_8.name());
         response.setContentType(MediaType.APPLICATION_OCTET_STREAM_VALUE);
         response.setHeader(HttpHeaders.CONTENT_DISPOSITION, contentDisposition);
-        response.setHeader(HttpHeaders.ACCESS_CONTROL_EXPOSE_HEADERS, FILE_NAME_HEADER);
-        response.setHeader(FILE_NAME_HEADER, encodedFileName);
+        response.setHeader(HttpHeaders.ACCESS_CONTROL_EXPOSE_HEADERS, BaseConstant.FILE_NAME_HEADER);
+        response.setHeader(BaseConstant.FILE_NAME_HEADER, encodedFileName);
     }
 
     /**
@@ -60,13 +58,13 @@ public interface DownloadHelper {
      * @param templateFileName 模板文件名
      */
     default void download(HttpServletResponse response, String templateFileName) throws IOException {
-        String templatePath = TEMPLATE_DIR + templateFileName;
+        String templatePath = BaseConstant.TEMPLATE_DIR + templateFileName;
         InputStream inputStream = Thread.currentThread()
                 .getContextClassLoader()
                 .getResourceAsStream(templatePath);
 
         if (inputStream == null) {
-            throw new FileNotFoundException("Template file not found: classpath:/" + templatePath);
+            throw new FileNotFoundException("/templates下文件未找到: classpath:/" + templatePath);
         }
 
         try (InputStream templateInputStream = inputStream) {
