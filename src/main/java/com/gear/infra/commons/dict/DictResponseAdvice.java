@@ -5,6 +5,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.converter.HttpMessageConverter;
 import org.springframework.http.server.ServerHttpRequest;
 import org.springframework.http.server.ServerHttpResponse;
+import org.springframework.http.server.ServletServerHttpRequest;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseBodyAdvice;
 
@@ -48,6 +49,20 @@ public class DictResponseAdvice implements ResponseBodyAdvice<Object> {
                                   Class<? extends HttpMessageConverter<?>> selectedConverterType,
                                   ServerHttpRequest request, ServerHttpResponse response) {
         DictConverter.convert(body);
+        if (isJson(selectedContentType) && request instanceof ServletServerHttpRequest) {
+            DictSerializationContext.enable(((ServletServerHttpRequest) request).getServletRequest());
+        }
         return body;
+    }
+
+    /**
+     * 判断当前响应是否由 JSON 序列化器处理。
+     */
+    private boolean isJson(MediaType mediaType) {
+        if (mediaType == null) {
+            return false;
+        }
+        return MediaType.APPLICATION_JSON.isCompatibleWith(mediaType)
+                || mediaType.getSubtype().endsWith("+json");
     }
 }

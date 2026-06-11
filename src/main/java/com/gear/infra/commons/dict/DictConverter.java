@@ -8,7 +8,6 @@ import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * 基于反射的字典描述转换工具。
@@ -18,11 +17,6 @@ import java.util.concurrent.ConcurrentHashMap;
  * 转换过程支持继承字段、多值编码和循环引用对象。</p>
  */
 public class DictConverter {
-
-    /**
-     * 缓存字典枚举常量，避免每次转换响应时重复获取枚举值。
-     */
-    private static final Map<Class<?>, BaseEnum<?>[]> ENUM_CACHE = new ConcurrentHashMap<Class<?>, BaseEnum<?>[]>();
 
     /**
      * 递归转换对象中所有标记了 {@link ConvertDict} 的字典描述字段。
@@ -103,7 +97,7 @@ public class DictConverter {
                 sourceField.setAccessible(true);
                 Object codeValue = sourceField.get(obj);
                 if (codeValue != null) {
-                    field.set(obj, lookupDesc(annotation.sourceClass(), codeValue));
+                    field.set(obj, DictEnumResolver.resolve(annotation.sourceClass(), codeValue));
                 }
                 return;
             }
@@ -111,48 +105,6 @@ public class DictConverter {
         } catch (ReflectiveOperationException | SecurityException ignored) {
             // 单个字段不可访问时跳过该字段，不能因此阻断整个接口响应。
         }
-    }
-
-    /**
-     * 根据枚举查找单值或逗号分隔多值编码对应的描述。
-     */
-    private static String lookupDesc(Class<? extends BaseEnum<?>> enumClass, Object code) {
-        BaseEnum<?>[] constants = ENUM_CACHE.computeIfAbsent(enumClass,
-                clazz -> (BaseEnum<?>[]) clazz.getEnumConstants());
-
-        if (constants == null) {
-            return String.valueOf(code);
-        }
-
-        String codeValue = String.valueOf(code);
-        if (!codeValue.contains(",")) {
-            return lookupSingleDesc(constants, codeValue);
-        }
-
-        StringBuilder descriptions = new StringBuilder();
-        for (String itemCode : codeValue.split(",")) {
-            String trimmedCode = itemCode.trim();
-            if (trimmedCode.isEmpty()) {
-                continue;
-            }
-            if (descriptions.length() > 0) {
-                descriptions.append(",");
-            }
-            descriptions.append(lookupSingleDesc(constants, trimmedCode));
-        }
-        return descriptions.toString();
-    }
-
-    /**
-     * 查找单个编码的描述，未匹配时保留原编码。
-     */
-    private static String lookupSingleDesc(BaseEnum<?>[] constants, String codeValue) {
-        for (BaseEnum<?> constant : constants) {
-            if (codeValue.equals(String.valueOf(constant.getCode()))) {
-                return constant.getDesc();
-            }
-        }
-        return codeValue;
     }
 
     /**
