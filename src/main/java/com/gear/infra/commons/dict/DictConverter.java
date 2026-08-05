@@ -1,13 +1,19 @@
 package com.gear.infra.commons.dict;
 
+import com.gear.infra.commons.dict.internal.DictEnumResolver;
 import java.lang.reflect.Array;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.IdentityHashMap;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /**
  * 基于反射的字典描述转换工具。
@@ -17,6 +23,14 @@ import java.util.Set;
  * 转换过程支持继承字段、多值编码和循环引用对象。</p>
  */
 public class DictConverter {
+
+    private static final Logger LOGGER = Logger.getLogger(DictConverter.class.getName());
+
+    /**
+     * 按运行时类型缓存字段访问计划，避免每个响应对象重复扫描继承层级和查找源字段。
+     */
+    private static final Map<Class<?>, List<FieldMetadata>> FIELD_CACHE =
+            new ConcurrentHashMap<Class<?>, List<FieldMetadata>>();
 
     /**
      * 递归转换对象中所有标记了 {@link ConvertDict} 的字典描述字段。
@@ -66,45 +80,90 @@ public class DictConverter {
             return;
         }
 
-        // 逐级扫描父类字段，确保继承自基类的字典字段也能完成转换。
-        Class<?> currentClass = objectClass;
-        while (currentClass != null && currentClass != Object.class) {
-            for (Field field : currentClass.getDeclaredFields()) {
-                if (Modifier.isStatic(field.getModifiers()) || field.isSynthetic()) {
-                    continue;
-                }
-                convertField(obj, objectClass, field, visited);
-            }
-            currentClass = currentClass.getSuperclass();
+        for (FieldMetadata fieldMetadata : getFieldMetadata(objectClass)) {
+            convertField(obj, fieldMetadata, visited);
         }
     }
 
     /**
      * 转换单个字典描述字段；普通字段则继续向下递归。
      */
-    private static void convertField(Object obj, Class<?> objectClass, Field field, Set<Object> visited) {
+    private static void convertField(Object obj, FieldMetadata fieldMetadata, Set<Object> visited) {
         try {
-            field.setAccessible(true);
-            ConvertDict annotation = field.getAnnotation(ConvertDict.class);
-            if (annotation != null) {
-                if (field.getType() != String.class) {
-                    return;
-                }
-                Field sourceField = getField(objectClass, annotation.sourceField());
-                if (sourceField == null) {
-                    return;
-                }
-                sourceField.setAccessible(true);
-                Object codeValue = sourceField.get(obj);
-                if (codeValue != null) {
-                    field.set(obj, DictEnumResolver.resolve(annotation.sourceClass(), codeValue));
-                }
+            if (fieldMetadata.isDictField()) {
+                Object codeValue = fieldMetadata.sourceField.get(obj);
+                // 即使编码为 null 也覆盖原描述，避免复用 DTO 时遗留旧值。
+                fieldMetadata.field.set(obj,
+                        DictEnumResolver.resolve(fieldMetadata.enumClass, codeValue));
                 return;
             }
-            convert(field.get(obj), visited);
-        } catch (ReflectiveOperationException | SecurityException ignored) {
-            // 单个字段不可访问时跳过该字段，不能因此阻断整个接口响应。
+            convert(fieldMetadata.field.get(obj), visited);
+        } catch (IllegalAccessException | IllegalArgumentException | SecurityException ex) {
+            LOGGER.log(Level.FINE, "Skip dictionary conversion for inaccessible field: "
+                    + fieldMetadata.field, ex);
         }
+    }
+
+    private static List<FieldMetadata> getFieldMetadata(Class<?> objectClass) {
+        return FIELD_CACHE.computeIfAbsent(objectClass, DictConverter::buildFieldMetadata);
+    }
+
+    /**
+     * 构建当前运行时类型的字段访问计划，并在缓存阶段校验字典字段配置。
+     */
+    private static List<FieldMetadata> buildFieldMetadata(Class<?> objectClass) {
+        List<FieldMetadata> result = new ArrayList<FieldMetadata>();
+        Class<?> currentClass = objectClass;
+        while (currentClass != null && currentClass != Object.class) {
+            for (Field field : currentClass.getDeclaredFields()) {
+                int modifiers = field.getModifiers();
+                if (Modifier.isStatic(modifiers) || Modifier.isTransient(modifiers) || field.isSynthetic()) {
+                    continue;
+                }
+
+                ConvertDict annotation = field.getAnnotation(ConvertDict.class);
+                if (annotation == null) {
+                    addFieldMetadata(result, field, null, null);
+                    continue;
+                }
+                if (field.getType() != String.class) {
+                    logInvalidConfiguration(field, "the target field must be String");
+                    continue;
+                }
+
+                Field sourceField = getField(objectClass, annotation.sourceField());
+                if (sourceField == null) {
+                    logInvalidConfiguration(field, "source field '" + annotation.sourceField() + "' was not found");
+                    continue;
+                }
+                addFieldMetadata(result, field, sourceField, annotation.sourceClass());
+            }
+            currentClass = currentClass.getSuperclass();
+        }
+        return Collections.unmodifiableList(result);
+    }
+
+    private static void addFieldMetadata(List<FieldMetadata> result, Field field, Field sourceField,
+                                         Class<? extends BaseEnum<?>> enumClass) {
+        try {
+            makeAccessible(field);
+            if (sourceField != null) {
+                makeAccessible(sourceField);
+            }
+            result.add(new FieldMetadata(field, sourceField, enumClass));
+        } catch (SecurityException ex) {
+            LOGGER.log(Level.FINE, "Skip dictionary conversion for inaccessible field: " + field, ex);
+        }
+    }
+
+    private static void makeAccessible(Field field) {
+        if (!field.isAccessible()) {
+            field.setAccessible(true);
+        }
+    }
+
+    private static void logInvalidConfiguration(Field field, String reason) {
+        LOGGER.fine("Ignore @ConvertDict on " + field + ": " + reason);
     }
 
     /**
@@ -138,5 +197,22 @@ public class DictConverter {
                 || packageName.startsWith("javax.")
                 || packageName.startsWith("sun.")
                 || packageName.startsWith("com.sun.");
+    }
+
+    private static final class FieldMetadata {
+
+        private final Field field;
+        private final Field sourceField;
+        private final Class<? extends BaseEnum<?>> enumClass;
+
+        private FieldMetadata(Field field, Field sourceField, Class<? extends BaseEnum<?>> enumClass) {
+            this.field = field;
+            this.sourceField = sourceField;
+            this.enumClass = enumClass;
+        }
+
+        private boolean isDictField() {
+            return sourceField != null;
+        }
     }
 }

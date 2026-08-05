@@ -1,8 +1,11 @@
-package com.gear.infra.commons.dict;
+package com.gear.infra.commons.dict.jackson;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.gear.infra.commons.dict.BaseEnum;
+import com.gear.infra.commons.dict.DictCode;
+import com.gear.infra.commons.dict.web.DictResponseAdvice;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;

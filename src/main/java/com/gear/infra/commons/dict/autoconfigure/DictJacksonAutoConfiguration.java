@@ -1,6 +1,7 @@
-package com.gear.infra.commons.dict;
+package com.gear.infra.commons.dict.autoconfigure;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.gear.infra.commons.dict.jackson.DictJacksonModule;
 import org.springframework.boot.autoconfigure.AutoConfigureBefore;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;

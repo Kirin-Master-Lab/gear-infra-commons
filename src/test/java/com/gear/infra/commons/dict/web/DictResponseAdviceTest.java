@@ -1,5 +1,7 @@
-package com.gear.infra.commons.dict;
+package com.gear.infra.commons.dict.web;
 
+import com.gear.infra.commons.dict.NeedDictConvert;
+import com.gear.infra.commons.dict.internal.DictSerializationContext;
 import org.junit.jupiter.api.Test;
 import org.springframework.core.MethodParameter;
 import org.springframework.http.MediaType;

@@ -1,5 +1,6 @@
-package com.gear.infra.commons.dict;
+package com.gear.infra.commons.dict.autoconfigure;
 
+import com.gear.infra.commons.dict.web.DictResponseAdvice;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;

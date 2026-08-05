@@ -1,7 +1,12 @@
-package com.gear.infra.commons.dict;
+package com.gear.infra.commons.dict.autoconfigure;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.gear.infra.commons.dict.BaseEnum;
+import com.gear.infra.commons.dict.DictCode;
+import com.gear.infra.commons.dict.internal.DictSerializationContext;
+import com.gear.infra.commons.dict.jackson.DictJacksonModule;
+import com.gear.infra.commons.dict.web.DictResponseAdvice;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.autoconfigure.jackson.JacksonAutoConfiguration;

@@ -3,6 +3,7 @@ package com.gear.infra.commons.helper;
 import com.gear.infra.commons.constant.BaseConstant;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockHttpServletResponse;
 
 import java.io.ByteArrayInputStream;
@@ -46,7 +47,7 @@ class DownloadHelperTest {
     @Test
     void prepareAttachmentResponseMergesExposeHeaders() throws IOException {
         MockHttpServletResponse response = new MockHttpServletResponse();
-        response.setHeader(HttpHeaders.ACCESS_CONTROL_EXPOSE_HEADERS, "X-Trace-Id, filename");
+        response.setHeader(HttpHeaders.ACCESS_CONTROL_EXPOSE_HEADERS, "X-Trace-Id, Filename");
 
         downloadHelper.prepareAttachmentResponse(response, "demo.xlsx");
 
@@ -55,7 +56,7 @@ class DownloadHelperTest {
         assertAll(
                 () -> assertTrue(exposeHeaders.contains("X-Trace-Id")),
                 () -> assertTrue(exposeHeaders.contains(HttpHeaders.CONTENT_DISPOSITION)),
-                () -> assertTrue(exposeHeaders.contains(BaseConstant.FILE_NAME_HEADER)),
+                () -> assertTrue(containsHeader(exposeHeaders, BaseConstant.FILE_NAME_HEADER)),
                 () -> assertEquals(1, countHeader(exposeHeaders, BaseConstant.FILE_NAME_HEADER))
         );
     }
@@ -74,6 +75,16 @@ class DownloadHelperTest {
     }
 
     @Test
+    void downloadStreamUsesSpecifiedMediaType() throws IOException {
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        downloadHelper.downloadStream(response, "report.pdf", new ByteArrayInputStream(new byte[0]),
+                MediaType.APPLICATION_PDF);
+
+        assertEquals(MediaType.APPLICATION_PDF_VALUE, response.getContentType());
+    }
+
+    @Test
     void methodsRejectInvalidArguments() {
         MockHttpServletResponse response = new MockHttpServletResponse();
 
@@ -86,6 +97,8 @@ class DownloadHelperTest {
                         () -> downloadHelper.prepareAttachmentResponse(response, " ")),
                 () -> assertThrows(IllegalArgumentException.class,
                         () -> downloadHelper.downloadStream(response, "demo.xlsx", null)),
+                () -> assertThrows(IllegalArgumentException.class,
+                        () -> downloadHelper.prepareAttachmentResponse(response, "demo.xlsx", null)),
                 () -> assertThrows(IllegalArgumentException.class,
                         () -> downloadHelper.download(null, "demo.xlsx")),
                 () -> assertThrows(IllegalArgumentException.class,
@@ -112,11 +125,15 @@ class DownloadHelperTest {
         int count = 0;
         String[] headers = exposeHeaders.split(",");
         for (String header : headers) {
-            if (headerName.equals(header.trim())) {
+            if (headerName.equalsIgnoreCase(header.trim())) {
                 count++;
             }
         }
         return count;
+    }
+
+    private static boolean containsHeader(String exposeHeaders, String headerName) {
+        return countHeader(exposeHeaders, headerName) > 0;
     }
 
     private static class CloseAwareInputStream extends ByteArrayInputStream {

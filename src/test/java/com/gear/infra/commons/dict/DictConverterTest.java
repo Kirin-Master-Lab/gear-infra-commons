@@ -67,6 +67,26 @@ class DictConverterTest {
         );
     }
 
+    @Test
+    void clearsExistingDescriptionWhenCodeIsNull() {
+        ReusableDto dto = new ReusableDto(null, "Previous value");
+
+        DictConverter.convert(dto);
+
+        assertNull(dto.statusName);
+    }
+
+    @Test
+    void doesNotTraverseTransientFields() {
+        DictDto included = new DictDto(1);
+        DictDto ignored = new DictDto(2);
+
+        DictConverter.convert(new TransientWrapper(included, ignored));
+
+        assertEquals("Enabled", included.statusName);
+        assertNull(ignored.statusName);
+    }
+
     private enum StatusEnum implements BaseEnum<Integer> {
         ENABLED(1, "Enabled"),
         DISABLED(2, "Disabled");
@@ -138,5 +158,27 @@ class DictConverterTest {
 
         @ConvertDict(sourceField = "status", sourceClass = StatusEnum.class)
         private Integer statusName = 10;
+    }
+
+    private static class ReusableDto {
+        private final Object status;
+
+        @ConvertDict(sourceField = "status", sourceClass = StatusEnum.class)
+        private String statusName;
+
+        ReusableDto(Object status, String statusName) {
+            this.status = status;
+            this.statusName = statusName;
+        }
+    }
+
+    private static class TransientWrapper {
+        private final DictDto included;
+        private final transient DictDto ignored;
+
+        TransientWrapper(DictDto included, DictDto ignored) {
+            this.included = included;
+            this.ignored = ignored;
+        }
     }
 }

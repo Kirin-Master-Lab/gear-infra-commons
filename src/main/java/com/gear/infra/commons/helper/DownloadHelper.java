@@ -4,6 +4,7 @@ import com.gear.infra.commons.constant.BaseConstant;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.http.MediaTypeFactory;
 import org.springframework.util.StreamUtils;
 
 import javax.servlet.http.HttpServletResponse;
@@ -12,8 +13,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
-import java.util.LinkedHashSet;
 import java.util.Set;
+import java.util.TreeSet;
 
 public interface DownloadHelper {
 
@@ -24,6 +25,17 @@ public interface DownloadHelper {
      * @param fileName 下载时展示的文件名
      */
     default void prepareAttachmentResponse(HttpServletResponse response, String fileName) throws IOException {
+        prepareAttachmentResponse(response, fileName, MediaType.APPLICATION_OCTET_STREAM);
+    }
+
+    /**
+     * 准备附件下载响应头。
+     *
+     * @param response 响应对象
+     * @param fileName 下载时展示的文件名
+     * @param mediaType 下载文件的媒体类型
+     */
+    default void prepareAttachmentResponse(HttpServletResponse response, String fileName, MediaType mediaType) throws IOException {
         if (response == null) {
             throw new IllegalArgumentException("response must not be null");
         }
@@ -33,6 +45,9 @@ public interface DownloadHelper {
         if (fileName.trim().isEmpty()) {
             throw new IllegalArgumentException("fileName must not be blank");
         }
+        if (mediaType == null) {
+            throw new IllegalArgumentException("mediaType must not be null");
+        }
 
         String encodedFileName = URLEncoder.encode(fileName, StandardCharsets.UTF_8.name()).replace("+", "%20");
         String contentDisposition = ContentDisposition.builder("attachment")
@@ -40,11 +55,10 @@ public interface DownloadHelper {
                 .build()
                 .toString();
 
-        response.setCharacterEncoding(StandardCharsets.UTF_8.name());
-        response.setContentType(MediaType.APPLICATION_OCTET_STREAM_VALUE);
+        response.setContentType(mediaType.toString());
         response.setHeader(HttpHeaders.CONTENT_DISPOSITION, contentDisposition);
 
-        Set<String> exposedHeaders = new LinkedHashSet<String>();
+        Set<String> exposedHeaders = new TreeSet<String>(String.CASE_INSENSITIVE_ORDER);
         String existsExposeHeaders = response.getHeader(HttpHeaders.ACCESS_CONTROL_EXPOSE_HEADERS);
         if (existsExposeHeaders != null && !existsExposeHeaders.trim().isEmpty()) {
             String[] existsExposeHeaderArray = existsExposeHeaders.split(",");
@@ -68,11 +82,24 @@ public interface DownloadHelper {
      * @param inputStream 文件输入流，由调用方负责关闭
      */
     default void downloadStream(HttpServletResponse response, String fileName, InputStream inputStream) throws IOException {
+        downloadStream(response, fileName, inputStream, MediaType.APPLICATION_OCTET_STREAM);
+    }
+
+    /**
+     * 将指定输入流作为附件下载。
+     *
+     * @param response 响应对象
+     * @param fileName 下载时展示的文件名
+     * @param inputStream 文件输入流，由调用方负责关闭
+     * @param mediaType 下载文件的媒体类型
+     */
+    default void downloadStream(HttpServletResponse response, String fileName, InputStream inputStream,
+                                MediaType mediaType) throws IOException {
         if (inputStream == null) {
             throw new IllegalArgumentException("inputStream must not be null");
         }
 
-        prepareAttachmentResponse(response, fileName);
+        prepareAttachmentResponse(response, fileName, mediaType);
         StreamUtils.copy(inputStream, response.getOutputStream());
         response.flushBuffer();
     }
@@ -107,7 +134,9 @@ public interface DownloadHelper {
         }
 
         try (InputStream templateInputStream = inputStream) {
-            downloadStream(response, templateFileName, templateInputStream);
+            MediaType mediaType = MediaTypeFactory.getMediaType(templateFileName)
+                    .orElse(MediaType.APPLICATION_OCTET_STREAM);
+            downloadStream(response, templateFileName, templateInputStream, mediaType);
         }
     }
 }

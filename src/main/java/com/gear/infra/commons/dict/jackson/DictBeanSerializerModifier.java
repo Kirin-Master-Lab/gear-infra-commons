@@ -1,5 +1,6 @@
-package com.gear.infra.commons.dict;
+package com.gear.infra.commons.dict.jackson;
 
+import com.gear.infra.commons.dict.DictCode;
 import com.fasterxml.jackson.databind.BeanDescription;
 import com.fasterxml.jackson.databind.SerializationConfig;
 import com.fasterxml.jackson.databind.ser.BeanPropertyWriter;

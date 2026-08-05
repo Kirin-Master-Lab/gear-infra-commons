@@ -29,16 +29,46 @@
 <dependency>
     <groupId>com.gear.infra</groupId>
     <artifactId>gear-infra-commons</artifactId>
-    <version>1.0.2-SNAPSHOT</version>
+    <version>1.0.3-SNAPSHOT</version>
 </dependency>
 ```
 
 Spring Boot 2.x 会通过 `spring.factories` 自动注册：
 
-- `DictResponseAdvice`
-- `DictJacksonModule`
+- `com.gear.infra.commons.dict.web.DictResponseAdvice`
+- `com.gear.infra.commons.dict.jackson.DictJacksonModule`
 
 主工程不需要额外扫描 `com.gear.infra.commons` 包，也不需要手动声明配置类。
+
+### 3.1 包结构
+
+根包仅保留业务代码需要直接使用的 API：
+
+- `BaseEnum`
+- `ConvertDict`
+- `DictCode`
+- `NeedDictConvert`
+- `DictConverter`
+
+其余实现按职责分层：
+
+| 包 | 职责 | 是否建议业务代码直接使用 |
+| --- | --- | --- |
+| `dict.autoconfigure` | Spring Boot 自动配置 | 否，默认自动装配即可 |
+| `dict.web` | Spring MVC 响应处理 | 否，除非需要自定义 Advice Bean |
+| `dict.jackson` | Jackson 虚拟字段输出 | 仅手动注册 `ObjectMapper` 时使用 `DictJacksonModule` |
+| `dict.internal` | 内部解析和请求上下文 | 否 |
+
+### 3.2 旧包路径迁移
+
+当前版本已移除根包下的实现类。若业务项目曾手动引用这些类型，请更新 import：
+
+| 原类型 | 新类型 |
+| --- | --- |
+| `com.gear.infra.commons.dict.DictResponseAdvice` | `com.gear.infra.commons.dict.web.DictResponseAdvice` |
+| `com.gear.infra.commons.dict.DictJacksonModule` | `com.gear.infra.commons.dict.jackson.DictJacksonModule` |
+| `com.gear.infra.commons.dict.DictAutoConfiguration` | `com.gear.infra.commons.dict.autoconfigure.DictAutoConfiguration` |
+| `com.gear.infra.commons.dict.DictJacksonAutoConfiguration` | `com.gear.infra.commons.dict.autoconfigure.DictJacksonAutoConfiguration` |
 
 ## 4. 定义字典枚举
 
@@ -70,6 +100,12 @@ public enum EmailKeywordEnum implements BaseEnum<String> {
 }
 ```
 
+所需 import：
+
+```java
+import com.gear.infra.commons.dict.BaseEnum;
+```
+
 `BaseEnum<T>` 的泛型类型可以是 `String`、`Integer` 等常用编码类型。转换时组件会使用编码的字符串形式进行匹配。
 
 ## 5. 推荐模式：`@DictCode`
@@ -97,6 +133,12 @@ public class EmailTemplateVO {
 }
 ```
 
+所需 import：
+
+```java
+import com.gear.infra.commons.dict.DictCode;
+```
+
 Controller 方法添加 `@NeedDictConvert`：
 
 ```java
@@ -110,6 +152,12 @@ public class EmailTemplateController {
         return emailTemplateService.getById(id);
     }
 }
+```
+
+所需 import：
+
+```java
+import com.gear.infra.commons.dict.NeedDictConvert;
 ```
 
 原始 Java 对象只包含：
@@ -218,6 +266,12 @@ public class EmailTemplateVO {
 }
 ```
 
+所需 import：
+
+```java
+import com.gear.infra.commons.dict.ConvertDict;
+```
+
 `@ConvertDict` 必须添加在 `String` 类型的目标文本字段上：
 
 - `sourceField`：同一对象中编码字段的 Java 字段名。
@@ -293,7 +347,7 @@ public Result<List<EmailTemplateVO>> list() {
 
 编码为 `null` 时：
 
-- `@ConvertDict` 不修改实体文本字段。
+- `@ConvertDict` 会将实体文本字段设置为 `null`，避免复用 DTO 时保留旧描述。
 - `@DictCode` 的虚拟文本字段遵循主工程 Jackson 的 null 输出策略。
 - 如果主工程配置为不输出 null，编码字段和虚拟文本字段都不会输出。
 
@@ -339,7 +393,7 @@ private String statusTxt;
 2. 响应 Content-Type 是否为 JSON。
 3. 主工程是否使用 Spring Boot 管理的 Jackson `ObjectMapper`。
 4. 字段是否会被 Jackson 正常序列化。
-5. 主工程是否排除了 `DictJacksonAutoConfiguration`。
+5. 主工程是否排除了 `com.gear.infra.commons.dict.autoconfigure.DictJacksonAutoConfiguration`。
 
 ### 11.2 `Txt` 字段返回了原始 code
 
@@ -360,6 +414,10 @@ private String statusTxt;
 objectMapper.registerModule(new DictJacksonModule());
 ```
 
+```java
+import com.gear.infra.commons.dict.jackson.DictJacksonModule;
+```
+
 ### 11.4 可以同时使用 `@DictCode` 和 `@ConvertDict` 吗
 
 技术上可以，但通常没有必要。建议按场景选择：
@@ -374,4 +432,3 @@ objectMapper.registerModule(new DictJacksonModule());
 3. 仅在需要字典文本的接口上添加 `@NeedDictConvert`。
 4. 文本字段命名优先使用默认的 `<codeField>Txt`，减少前端理解成本。
 5. 需要兼容旧响应结构时保留 `@ConvertDict`，不要一次性破坏下游接口。
-

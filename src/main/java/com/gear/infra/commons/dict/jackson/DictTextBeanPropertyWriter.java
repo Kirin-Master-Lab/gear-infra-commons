@@ -1,5 +1,8 @@
-package com.gear.infra.commons.dict;
+package com.gear.infra.commons.dict.jackson;
 
+import com.gear.infra.commons.dict.BaseEnum;
+import com.gear.infra.commons.dict.internal.DictEnumResolver;
+import com.gear.infra.commons.dict.internal.DictSerializationContext;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.PropertyName;
 import com.fasterxml.jackson.databind.SerializerProvider;

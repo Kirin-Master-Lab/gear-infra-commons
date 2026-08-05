@@ -1,4 +1,4 @@
-package com.gear.infra.commons.dict;
+package com.gear.infra.commons.dict.jackson;
 
 import com.fasterxml.jackson.databind.module.SimpleModule;
 
